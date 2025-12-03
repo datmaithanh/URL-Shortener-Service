@@ -11,10 +11,11 @@ import (
 
 type Url struct {
 	ID          int64
-	Code        string
+	Code        sql.NullString
+	ShortUrl    sql.NullString
 	OriginalUrl string
-	Title       sql.NullString
-	Clicks      sql.NullInt64
+	Title       string
+	Clicks      int64
 	CreatedAt   time.Time
-	ExpiresAt   sql.NullTime
+	ExpiresAt   time.Time
 }

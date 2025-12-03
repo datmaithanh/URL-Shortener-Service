@@ -8,30 +8,32 @@ package db
 import (
 	"context"
 	"database/sql"
+	"time"
 )
 
 const createUrl = `-- name: CreateUrl :one
 INSERT INTO urls (
-    code,
     original_url,
-    title
+    title,
+    expires_at
 ) VALUES (
   $1, $2, $3
-) RETURNING id, code, original_url, title, clicks, created_at, expires_at
+) RETURNING id, code, short_url, original_url, title, clicks, created_at, expires_at
 `
 
 type CreateUrlParams struct {
-	Code        string
 	OriginalUrl string
-	Title       sql.NullString
+	Title       string
+	ExpiresAt   time.Time
 }
 
 func (q *Queries) CreateUrl(ctx context.Context, arg CreateUrlParams) (Url, error) {
-	row := q.db.QueryRowContext(ctx, createUrl, arg.Code, arg.OriginalUrl, arg.Title)
+	row := q.db.QueryRowContext(ctx, createUrl, arg.OriginalUrl, arg.Title, arg.ExpiresAt)
 	var i Url
 	err := row.Scan(
 		&i.ID,
 		&i.Code,
+		&i.ShortUrl,
 		&i.OriginalUrl,
 		&i.Title,
 		&i.Clicks,
@@ -52,7 +54,7 @@ func (q *Queries) DeleteUrl(ctx context.Context, id int64) error {
 }
 
 const getUrl = `-- name: GetUrl :one
-SELECT id, code, original_url, title, clicks, created_at, expires_at FROM urls
+SELECT id, code, short_url, original_url, title, clicks, created_at, expires_at FROM urls
 WHERE id = $1 LIMIT 1
 `
 
@@ -62,6 +64,7 @@ func (q *Queries) GetUrl(ctx context.Context, id int64) (Url, error) {
 	err := row.Scan(
 		&i.ID,
 		&i.Code,
+		&i.ShortUrl,
 		&i.OriginalUrl,
 		&i.Title,
 		&i.Clicks,
@@ -72,7 +75,7 @@ func (q *Queries) GetUrl(ctx context.Context, id int64) (Url, error) {
 }
 
 const listUrl = `-- name: ListUrl :many
-SELECT id, code, original_url, title, clicks, created_at, expires_at FROM urls
+SELECT id, code, short_url, original_url, title, clicks, created_at, expires_at FROM urls
 ORDER BY id
 LIMIT $1
 OFFSET $2
@@ -95,6 +98,7 @@ func (q *Queries) ListUrl(ctx context.Context, arg ListUrlParams) ([]Url, error)
 		if err := rows.Scan(
 			&i.ID,
 			&i.Code,
+			&i.ShortUrl,
 			&i.OriginalUrl,
 			&i.Title,
 			&i.Clicks,
@@ -114,20 +118,50 @@ func (q *Queries) ListUrl(ctx context.Context, arg ListUrlParams) ([]Url, error)
 	return items, nil
 }
 
+const updateCodeUrl = `-- name: UpdateCodeUrl :one
+UPDATE urls
+SET code = $2,
+    short_url = $3
+WHERE id = $1
+RETURNING id, code, short_url, original_url, title, clicks, created_at, expires_at
+`
+
+type UpdateCodeUrlParams struct {
+	ID       int64
+	Code     sql.NullString
+	ShortUrl sql.NullString
+}
+
+func (q *Queries) UpdateCodeUrl(ctx context.Context, arg UpdateCodeUrlParams) (Url, error) {
+	row := q.db.QueryRowContext(ctx, updateCodeUrl, arg.ID, arg.Code, arg.ShortUrl)
+	var i Url
+	err := row.Scan(
+		&i.ID,
+		&i.Code,
+		&i.ShortUrl,
+		&i.OriginalUrl,
+		&i.Title,
+		&i.Clicks,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+	)
+	return i, err
+}
+
 const updateUrl = `-- name: UpdateUrl :one
 UPDATE urls
 SET code = $2,
     original_url = $3,
     title = $4
 WHERE id = $1
-RETURNING id, code, original_url, title, clicks, created_at, expires_at
+RETURNING id, code, short_url, original_url, title, clicks, created_at, expires_at
 `
 
 type UpdateUrlParams struct {
 	ID          int64
-	Code        string
+	Code        sql.NullString
 	OriginalUrl string
-	Title       sql.NullString
+	Title       string
 }
 
 func (q *Queries) UpdateUrl(ctx context.Context, arg UpdateUrlParams) (Url, error) {
@@ -141,6 +175,7 @@ func (q *Queries) UpdateUrl(ctx context.Context, arg UpdateUrlParams) (Url, erro
 	err := row.Scan(
 		&i.ID,
 		&i.Code,
+		&i.ShortUrl,
 		&i.OriginalUrl,
 		&i.Title,
 		&i.Clicks,

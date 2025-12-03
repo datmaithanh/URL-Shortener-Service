@@ -1,5 +1,8 @@
+include .env.prod
+export DB_SOURCE
+
 migrateup:
-	migrate -path db/migration -database "postgresql://neondb_owner:npg_AeWjEvOz65HK@ep-empty-bar-a11p3ep6-pooler.ap-southeast-1.aws.neon.tech/urlshortsevice?sslmode=require&channel_binding=require" -verbose up
+	migrate -path db/migration -database "$(DB_SOURCE)" -verbose up
 
 createschema:
 	migrate create -ext sql -dir db/migration -seq init_schema
@@ -7,4 +10,8 @@ createschema:
 sqlc:
 	sqlc generate
 
-PHONY: createschema migrateup sqlc
+
+run: 
+	go run cmd/main/main.go
+
+PHONY: createschema migrateup sqlc run

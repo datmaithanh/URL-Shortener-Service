@@ -1,8 +1,8 @@
 -- name: CreateUrl :one
 INSERT INTO urls (
-    code,
     original_url,
-    title
+    title,
+    expires_at
 ) VALUES (
   $1, $2, $3
 ) RETURNING *;
@@ -16,6 +16,13 @@ SELECT * FROM urls
 ORDER BY id
 LIMIT $1
 OFFSET $2;
+
+-- name: UpdateCodeUrl :one
+UPDATE urls
+SET code = $2,
+    short_url = $3
+WHERE id = $1
+RETURNING *;
 
 -- name: UpdateUrl :one
 UPDATE urls
