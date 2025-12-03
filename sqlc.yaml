@@ -1,0 +1,17 @@
+version: '2'
+servers: []
+sql:
+  - engine: 'postgresql'
+    queries: './db/query'
+    schema: './db/migration'
+    gen:
+      go:
+        package: 'db'
+        out: './db/sqlc'
+        emit_empty_slices: true
+        emit_interface: true
+overrides:
+  go: null
+plugins: []
+rules: []
+options: {}
