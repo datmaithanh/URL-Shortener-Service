@@ -34,9 +34,36 @@ func (server *Server) newUrlsResponse(ctx *gin.Context) {
 		return
 	}
 
-	// Check if OriginalURL already exists
 	existingUrl, err := server.store.GetUrlByOriginalUrl(ctx, req.OriginalURL)
+
 	if err == nil && existingUrl.OriginalUrl == req.OriginalURL {
+
+		if time.Now().After(existingUrl.ExpiresAt) {
+
+			newExpire := time.Now().Add(config.URL_EXPIRE_DURATION)
+
+
+			updated, err := server.store.UpdateExpireUrl(ctx, db.UpdateExpireUrlParams{
+				ID:        existingUrl.ID,
+				ExpiresAt: newExpire,
+			})
+			if err != nil {
+				ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+				return
+			}
+
+			ctx.JSON(http.StatusOK, urlsResponse{
+				Code:        updated.Code.String,
+				ShortURL:    updated.ShortUrl.String,
+				OriginalURL: updated.OriginalUrl,
+				Title:       updated.Title,
+				Clicks:      updated.Clicks,
+				CreatedAt:   updated.CreatedAt,
+				ExpiresAt:   updated.ExpiresAt,
+			})
+			return
+		}
+
 		ctx.JSON(http.StatusOK, urlsResponse{
 			Code:        existingUrl.Code.String,
 			ShortURL:    existingUrl.ShortUrl.String,
@@ -105,7 +132,6 @@ func (server *Server) redirectUrl(ctx *gin.Context) {
 
 	url, err := server.store.GetUrlByCode(ctx, sql.NullString{String: code, Valid: true})
 	if err != nil {
-
 		ctx.JSON(http.StatusNotFound, errorResponse(err))
 		return
 	}

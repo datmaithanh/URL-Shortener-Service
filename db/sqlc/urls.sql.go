@@ -190,6 +190,34 @@ func (q *Queries) UpdateCodeUrl(ctx context.Context, arg UpdateCodeUrlParams) (U
 	return i, err
 }
 
+const updateExpireUrl = `-- name: UpdateExpireUrl :one
+UPDATE urls
+SET expires_at = $2
+WHERE id = $1
+RETURNING id, code, short_url, original_url, title, clicks, created_at, expires_at
+`
+
+type UpdateExpireUrlParams struct {
+	ID        int64
+	ExpiresAt time.Time
+}
+
+func (q *Queries) UpdateExpireUrl(ctx context.Context, arg UpdateExpireUrlParams) (Url, error) {
+	row := q.db.QueryRowContext(ctx, updateExpireUrl, arg.ID, arg.ExpiresAt)
+	var i Url
+	err := row.Scan(
+		&i.ID,
+		&i.Code,
+		&i.ShortUrl,
+		&i.OriginalUrl,
+		&i.Title,
+		&i.Clicks,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+	)
+	return i, err
+}
+
 const updateUrl = `-- name: UpdateUrl :one
 UPDATE urls
 SET code = $2,

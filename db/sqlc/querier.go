@@ -17,6 +17,7 @@ type Querier interface {
 	GetUrlByOriginalUrl(ctx context.Context, originalUrl string) (Url, error)
 	ListUrl(ctx context.Context, arg ListUrlParams) ([]Url, error)
 	UpdateCodeUrl(ctx context.Context, arg UpdateCodeUrlParams) (Url, error)
+	UpdateExpireUrl(ctx context.Context, arg UpdateExpireUrlParams) (Url, error)
 	UpdateUrl(ctx context.Context, arg UpdateUrlParams) (Url, error)
 }
 

@@ -40,6 +40,12 @@ SET code = $2,
 WHERE id = $1
 RETURNING *;
 
+-- name: UpdateExpireUrl :one
+UPDATE urls
+SET expires_at = $2
+WHERE id = $1
+RETURNING *;
+
 -- name: DeleteUrl :exec
 DELETE FROM urls
 WHERE id = $1;
