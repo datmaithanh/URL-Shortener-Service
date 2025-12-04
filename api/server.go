@@ -14,6 +14,7 @@ func NewServer(store db.Store) (*Server, error) {
 	server := &Server{
 		store: store,
 	}
+	
 
 	server.setupRouter()
 
