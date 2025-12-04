@@ -21,6 +21,8 @@ func (server *Server) setupRouter() *gin.Engine {
 
 	router.POST("/urls", server.newUrlsResponse)
 	router.GET("/:code", server.redirectUrl)
+	router.GET("/urls/:id", server.getUrl)
+	router.GET("/urls", server.listUrls)
 
 	server.router = router
 	return router

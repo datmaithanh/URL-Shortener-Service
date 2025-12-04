@@ -20,18 +20,15 @@ func (store *SQLStore) CreateUrlTx(ctx context.Context, arg CreateUrlTxParams) (
 	err := store.execTx(ctx, func(q *Queries) error {
 
 		var err error
-
 		existingUrl, err := q.GetUrlByOriginalUrl(ctx, arg.OriginalUrl)
-
 		if err == nil {
 			result.Url = existingUrl
 			return nil
 		}
-
 		if err != sql.ErrNoRows {
 			return err
 		}
-
+		
 		result.Url, err = q.CreateUrl(ctx, arg.CreateUrlParams)
 		if err != nil {
 			return err
@@ -41,7 +38,6 @@ func (store *SQLStore) CreateUrlTx(ctx context.Context, arg CreateUrlTxParams) (
 		if err != nil {
 			return err
 		}
-
 		return nil
 	})
 
