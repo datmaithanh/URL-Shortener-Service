@@ -1,244 +1,406 @@
-🚀 URL Shortener Service
+# URL Shortener Service
 
-Một dịch vụ rút gọn URL được xây dựng bằng Golang, sử dụng Gin, PostgreSQL, Docker, và Clean Architecture.
-Mục tiêu của project là tạo ra một hệ thống có khả năng tạo các mã URL ngắn ổn định, chống trùng lặp, có khả năng chịu tải cao và dễ mở rộng.
+## Mô tả bài toán
 
-🧩 1. Mô tả bài toán
+### Bài toán cần giải quyết
+Xây dựng một hệ thống rút gọn URL cho phép người dùng:
+- Chuyển đổi URL dài thành mã ngắn (short code) dễ chia sẻ
+- Truy cập URL gốc thông qua mã ngắn
+- Theo dõi số lượng truy cập vào mỗi link
 
-Bài toán yêu cầu xây dựng một hệ thống rút gọn URL giống như Bitly hoặc TinyURL:
+### Hiểu về bài toán
+Đây là bài toán thiết kế hệ thống phân tán điển hình, yêu cầu cân bằng giữa:
+- **Performance**: Phải redirect nhanh
+- **Scalability**: Xử lý được hàng triệu URL
+- **Uniqueness**: Đảm bảo mỗi short code là duy nhất
+- **Collision Handling**: Xử lý trường hợp trùng lặp mã
 
-Người dùng gửi original URL ⇒ Hệ thống trả về short code.
+### Các yêu cầu chức năng
+1. **Shorten URL**: `POST /urls` - Tạo mã ngắn từ URL dài
+2. **Redirect**: `GET /:code` - Chuyển hướng đến URL gốc
+3. **Get an url**: `GET /urls/:id` - Xem chi tiết một url
+4. **Get list urls**: `GET /urls?page_id=1&page_size=5` - Xem chi tiết danh sách url  
 
-Khi người dùng truy cập short URL ⇒ Redirect về original URL.
+---
 
-Có cơ chế:
+## 🚀 Cách chạy project
 
-Không tạo duplicate code.
+### Prerequisites
+```bash
+go v1.25
+make
+sqlc v1.30.0
+migrate 4.19
+```
 
-Nếu cùng một URL đã tồn tại trước đó thì phải xử lý logic tùy yêu cầu.
-
-Giới hạn expired time và tự cập nhật khi hết hạn.
-
-Hỗ trợ concurrency (nhiều request cùng tạo một URL).
-
-Tôi hiểu bài toán theo hướng: phải xây dựng một API đáng tin cậy, tốc độ cao, bảo toàn tính nhất quán trong database, và có thể sẵn sàng mở rộng khi traffic tăng.
-
-🛠️ 2. Cách chạy project
-🔧 Yêu cầu hệ thống
-
-Go 1.22+
-
-Docker & Docker Compose
-
-PostgreSQL (local hoặc container)
-
-Makefile đã cài đặt
-
-📦 Step-by-step
-1️⃣ Clone project
+### Bước 1: Clone repository
+```bash
 git clone https://github.com/datmaithanh/URL-Shortener-Service
 cd URL-Shortener-Service
+```
 
-2️⃣ Tạo file môi trường
-cp app.env.example app.env
+### Bước 2: Cài đặt dependencies
+```bash
+go mod tidy
+```
+
+### Bước 3: Setup Database
+
+**Dùng Neon (Khuyến nghị)**
+```bash
+https://console.neon.tech/
+```
+<img width="1906" height="934" alt="image" src="https://github.com/user-attachments/assets/dd88ac25-8762-4c28-928b-d56dc58a446f" />
+<img width="738" height="591" alt="image" src="https://github.com/user-attachments/assets/c57299ba-882a-4f10-afe6-afbb76936267" />
 
 
-Điền:
+### Bước 4: Config môi trường
+Tạo file `.env.prod` từ template:
+```bash
+Sửa lại database source từ source ở bước 3
+```
+Sửa lại các giá trị trong `config/config.go`
 
-DB_SOURCE=postgresql://user:password@localhost:5432/shortener?sslmode=disable
-SERVER_ADDRESS=0.0.0.0:8080
+### Bước 5: Setup migration
+```bash
+make createschema
+```
+Sau đó copy database schema vào file up vừa được tạo.
+<img width="738" height="447" alt="image" src="https://github.com/user-attachments/assets/fad876cb-6b67-4e93-a32a-673c8271d0ad" />
+```sql
+SET TIME ZONE 'Asia/Ho_Chi_Minh';
 
-3️⃣ Chạy PostgreSQL bằng Docker
-make postgres
+ALTER DATABASE urlshortsevice SET timezone TO 'Asia/Ho_Chi_Minh';
 
-4️⃣ Chạy migration
+CREATE TABLE urls (
+    id BIGSERIAL PRIMARY KEY,
+    code VARCHAR(32) UNIQUE,
+    short_url TEXT UNIQUE, 
+    original_url TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL DEFAULT '',
+    clicks bigint NOT NULL DEFAULT 0,
+    created_at timestamptz NOT NULL DEFAULT (now()),
+    expires_at timestamptz NOT NULL
+);
+
+CREATE INDEX ON "urls" ("code");
+
+CREATE INDEX ON "urls" ("original_url");
+make createschema
+```
+
+### Bước 6: Migration
+```bash
 make migrateup
+```
+### Bước 7: SQLC
+```bash
+make sqlc
+```
 
-5️⃣ Chạy server
-make server
+### Bước 8: Run app
+```bash
+make run
+```
 
-6️⃣ Test API
+---
 
-Tạo URL rút gọn
+## Thiết kế & Quyết định kỹ thuật
 
-POST /api/shorten
-{
-  "originalUrl": "https://google.com"
+### 1. Database: PostgreSQL
+
+**Lý do chọn PostgreSQL:**
+- **ACID compliance**: Đảm bảo tính toàn vẹn dữ liệu khi có concurrent requests
+- **Index performance**: B-tree index trên `short_code` cho lookup O(log n)
+
+
+### 2. Schema Design
+
+```sql
+SET TIME ZONE 'Asia/Ho_Chi_Minh';
+
+ALTER DATABASE urlshortsevice SET timezone TO 'Asia/Ho_Chi_Minh';
+
+CREATE TABLE urls (
+    id BIGSERIAL PRIMARY KEY,
+    code VARCHAR(32) UNIQUE,
+    short_url TEXT UNIQUE, 
+    original_url TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL DEFAULT '',
+    clicks bigint NOT NULL DEFAULT 0,
+    created_at timestamptz NOT NULL DEFAULT (now()),
+    expires_at timestamptz NOT NULL
+);
+
+CREATE INDEX ON "urls" ("code");
+
+CREATE INDEX ON "urls" ("original_url");
+```
+
+**Quyết định:**
+- `code` là code được tạo ra từ thuật toán
+- `short_url` là url đã được rút gọn và sẵn sàng phục vụ
+- `original_url` là url gốc
+- `clicks` là số lượng click vào short link
+
+### 3. Thuật toán Generate Short Code
+
+**Approach: Base62 Encoding + Counter**
+
+```golang
+const base62Chars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+func EncodeBase62(num int64) string {
+	if num == 0 {
+		return "0"
+	}
+	result := ""
+	for num > 0 {
+		remainder := num % 62
+		result = string(base62Chars[remainder]) + result
+		num = num / 62
+	}
+	return result
 }
+```
+
+**Tại sao Base62?**
+- 62^7 = 3.5 trillion combinations → Đủ scale
+- URL-safe characters (không cần encode)
+- Deterministic từ database ID
+
+**Alternative approach đã xem xét:**
+| Approach | Pros | Cons | Kết luận |
+|----------|------|------|----------|
+| Random + Retry | Đơn giản | Collision tăng theo thời gian | ❌ Không scale |
+| UUID | Unique 100% | Quá dài (36 chars) | ❌ Không ngắn |
+| Hash (MD5) | Deterministic | Collision possible, dài | ❌ Cần shorten hash |
+| **Base62 + ID** | Unique, ngắn, fast | Cần auto-increment ID | ✅ **Chọn** |
+
+### 4. Xử lý Transaction/Duplicate
 
 
-Redirect
+```golang
+func (store *SQLStore) CreateUrlTx(ctx context.Context, arg CreateUrlTxParams) (CreateUrlTxResult, error) {
+	var result CreateUrlTxResult
 
-GET /:shortCode
+	err := store.execTx(ctx, func(q *Queries) error {
 
-🏗️ 3. Thiết kế & Quyết định kỹ thuật
-🗄️ Tại sao chọn PostgreSQL?
-Lý do	Giải thích
-Tính nhất quán mạnh	Short code phải unique tuyệt đối, PostgreSQL hỗ trợ transaction và unique index rất tốt
-Hỗ trợ JSONB	Linh hoạt mở rộng
-Sequence & chức năng random tốt	Dễ implement thuật toán generate mã
-Mở rộng dễ	Khi scale sang read-replica vẫn ổn
+		var err error
+		existingUrl, err := q.GetUrlByOriginalUrl(ctx, arg.OriginalUrl)
+		if err == nil {
+			result.Url = existingUrl
+			return nil
+		}
+		if err != sql.ErrNoRows {
+			return err
+		}
+		
+		result.Url, err = q.CreateUrl(ctx, arg.CreateUrlParams)
+		if err != nil {
+			return err
+		}
 
-PostgreSQL phù hợp cho một dịch vụ CRUD nhỏ nhưng yêu cầu tính toàn vẹn cao.
+		result.Url, err = arg.AfterCreate(q, &result.Url)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
 
-🔌 Thiết kế API
-POST   /api/shorten       → tạo short url
-GET    /:shortCode        → redirect
-GET    /api/urls/:id      → lấy thông tin url
-
-
-Lý do:
-
-RESTful, đơn giản, dễ dùng.
-
-Hướng tới production-ready.
-
-URL redirect nên dùng GET trực tiếp cho tốc độ.
-
-🔑 Thuật toán generate short code
-
-Dùng base62 encoding (0-9, a-z, A-Z):
-
-Generate random 8 ký tự bằng charset Base62
-⇒ 62⁸ ≈ 218 nghìn tỷ combination ⇒ gần như không trùng.
-
-Check trong DB:
-
-Nếu tồn tại ⇒ generate lại.
-
-Lưu với unique index để đảm bảo không bao giờ trùng.
-
-Pseudo:
-
-for {
-    code := RandomBase62(8)
-    if !ExistsInDB(code) {
-        return code
-    }
+	return result, err
 }
+```
+```golang
+existingUrl, err := server.store.GetUrlByOriginalUrl(ctx, req.OriginalURL)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			payload := db.CreateUrlTxParams{
+				CreateUrlParams: db.CreateUrlParams{
+					OriginalUrl: req.OriginalURL,
+					Title:       req.Title,
+					ExpiresAt:   time.Now().Add(config.URL_EXPIRE_DURATION),
+				},
+				AfterCreate: func(q *db.Queries, url *db.Url) (db.Url, error) {
+					code := utils.EncodeBase62(url.ID)
+					shortUrl := fmt.Sprintf("%s/%s", config.DOMAIN_NAME, code)
 
-⚔️ Xử lý conflict / duplicate
-TH1: Duplicate short code
+					result, err := q.UpdateCodeUrl(ctx, db.UpdateCodeUrlParams{
+						ID:       url.ID,
+						Code:     sql.NullString{String: code, Valid: true},
+						ShortUrl: sql.NullString{String: shortUrl, Valid: true},
+					})
+					if err != nil {
+						return db.Url{}, err
+					}
+					return result, nil
+				},
+			}
 
-→ DB UNIQUE constraint xử lý, app retry tự động.
+			url, err := server.store.CreateUrlTx(ctx, payload)
+			fmt.Println("DEBUG URL: ", url)
+			if err != nil {
+				ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+				return
+			}
 
-TH2: Cùng một URL gửi 2 lần
-
-Kiểm tra bằng original_url UNIQUE.
-
-Nếu URL đã rút gọn tồn tại → Trả về short code cũ.
-
-Nếu expired → Update expired_at + extend time.
-
-Giải pháp đảm bảo idempotent cho API.
-
-⚖️ 4. Trade-offs (Lựa chọn kỹ thuật)
-🧩 Vì sao chọn random code thay vì incremental ID?
-
-Chọn random Base62 vì:
-
-Incremental ID	Random Base62
-Dễ đoán, dễ bị spam	Khó đoán, an toàn
-Short URL ngắn	Cũng ngắn
-Cần encode ID	Không cần
-Dễ trùng khi scale	Không bao giờ trùng
-
-➡️ Chọn random Base62 vì bảo mật & dễ scaling.
-
-🧩 Vì sao chọn Gin?
-
-Nhẹ, nhanh, đơn giản.
-
-Ecosystem mạnh.
-
-Phù hợp microservice.
-
-🧩 Vì sao chọn Clean Architecture?
-
-Tách biệt layers: Handler → Service → Repository
-
-Dễ mở rộng (chuyển DB, cache, queue…)
-
-Dễ viết unit test.
-
-🧨 5. Challenges đã gặp & Cách giải quyết
-1️⃣ Vấn đề concurrency: 2 request cùng lúc tạo URL giống nhau
-
-Giải pháp:
-
-DB unique index để đảm bảo consistency.
-
-Retry logic khi conflict.
-
-2️⃣ Vấn đề expired URL
-
-Giải pháp:
-
-Khi check URL nếu đã expired → renew thời gian → update DB.
-
-3️⃣ Vấn đề migration lộ thông tin DB
-
-Giải pháp:
-
-Không gắn DB source vào Makefile.
-
-Đọc env trong runtime hoặc dùng dotenv cho migrate script.
-
-4️⃣ Clone repo & build bị lỗi version hoặc dependency
-
-Giải pháp:
-
-Tạo Makefile chuẩn.
-
-Dùng Docker cho môi trường thống nhất.
-
-🚧 6. Limitations & Improvements
-🔸 Hiện tại còn thiếu gì?
-
-Chưa có caching (Redis) để tăng tốc redirect.
-
-Chưa có rate-limit.
-
-Chưa có authentication.
-
-Chưa có system design cho high scale.
-
-🔸 Nếu có thêm thời gian, tôi sẽ làm:
-
-Thêm Redis caching cho short-url → tăng tốc gấp 10 lần.
-
-Thêm Prometheus metrics.
-
-Ghi log bằng Zap hoặc Zerolog.
-
-Tối ưu random generator (sử dụng crypto/rand).
-
-Viết 100% unit test cho service & handler.
-
-🔸 Production-ready cần:
-
-Docker + CI/CD.
-
-Auto migration.
-
-Health check endpoint.
-
-Retry logic mạnh hơn.
-
-Circuit breaker nếu DB quá tải.
-
-SSO hoặc token-based admin API.
-
-📄 7. Kiến trúc tổng quan
-/cmd
-/internal
-    /api        → HTTP handlers
-    /service    → business logic
-    /repository → db queries
-/pkg
-    /utils      → helper, random generator
-/db
-    /migration
+			response := urlsResponse{
+				Code:        url.Url.Code.String,
+				ShortURL:    url.Url.ShortUrl.String,
+				OriginalURL: url.Url.OriginalUrl,
+				Title:       url.Url.Title,
+				Clicks:      url.Url.Clicks,
+				CreatedAt:   url.Url.CreatedAt,
+				ExpiresAt:   url.Url.ExpiresAt,
+			}
+			ctx.JSON(http.StatusOK, response)
+			return
+		}
+	}
+```
 
 
-=> Dễ mở rộng và clean.
+### 5. API Design
+
+**RESTful với pragmatic choices:**
+
+```
+`POST /urls` - Tạo mã ngắn từ URL dài
+`GET /:code` - Chuyển hướng đến URL gốc
+`GET /urls/:id` - Xem chi tiết một url`
+`GET /urls?page_id=1&page_size=5` - Xem chi tiết danh sách url 
+```
+
+---
+
+## ⚖️ Trade-offs
+
+### 1. Database Layer: SQLC vs Alternatives
+
+**Chọn:** SQLC
+**Thay vì:** GORM, sqlx, ent, raw database/sql
+
+**Lý do:**
+```
+✅ Type safety: Generate Go code từ SQL → compile-time errors
+✅ Performance: Không có reflection overhead như ORM
+✅ SQL-first: Viết SQL thuần → full control query optimization
+```
+### 2. golang-migrate (Database Migrations)
+```
+// GORM: Dễ nhưng nguy hiểm
+db.AutoMigrate(&URL{}) 
+// ❌ Không có down migration
+// ❌ Không review được changes
+// ❌ Production data loss risk
+```
+```
+// golang-migrate: Explicit
+// ✅ Peer review migrations
+// ✅ Test rollback
+// ✅ Audit trail
+```
+
+### 3. Gin Framework
+```
+Gin:    Simple, fast, popular (67k stars)
+Chi:    Thuần Go idioms, stdlib-like, nhẹ hơn
+Echo:   Nhiều features hơn (WebSocket, SSE)
+```
+Ưu điểm nhược điểm:
+```
+Trade-off đã chấp nhận:
+
+Gin không follow Go idioms 100% (context riêng thay vì stdlib)
+Middleware signature khác với net/http standard
+Locked vào Gin ecosystem
+
+Lý do vẫn chọn:
+
+Community lớn → nhiều resources, plugins
+Performance proven ở production scale
+Onboarding developers dễ hơn
+
+```
+
+### 4. Base62 Encoding
+Đã chọn Base62:
+```
+Zero collision: Database sequence đảm bảo unique
+Performance: 1 query, không retry
+Simple: Không cần random generator, collision check
+Scalable: 3.5 trillion combinations với 7 chars
+```
+##  Challenges & Solutions
+
+### Vấn đề: 2 request 1 time
+
+**Vấn đề:**  
+Khi gửi 2 request của 1 lúc với nội dung gióng nhau thì có 2 record giống nhau.
+
+**Giải quyết:**
+```
+Sử dụng transaction khi đang tạo url mới thì check tồn tại.
+Nếu đúng thì mới được tạo hoàn toàn, nếu không đúng thì cho rollback.
+```
+
+**Học được:**
+```
+Xử lí khi record trùng lặp
+Kĩ năng debug được nâng cao
+```
+## 🚧 Limitations & Improvements
+
+### Limitations hiện tại
+
+1. **No JWT**
+   - Nó đang là public
+   
+2. **No Caching Layer**
+   - Mọi request đều hit database → Latency cao cho popular links
+   
+3. **No Rate Limiting**
+   - Dễ bị abuse, DDoS
+
+### Nếu có thêm 1 tuần:
+
+**Week Plan:**
+
+**Day 1-2: Caching Layer**
+```
+- Cache-aside pattern
+- Expected: P99 latency giảm nhiều lần
+```
+
+**Day 3-5: Security**
+```
+- Rate limiting: redis-rate-limiter (100 req/IP/hour)
+- Paseto/jwt
+```
+##  Performance Benchmarks
+
+### Điều làm tốt:
+- Database schema đơn giản nhưng effective
+- Base62 algorithm elegant và scalable
+- Xử lý errors đầy đủ
+- Xử lý transaction (có thể mở rộng)
+
+### Điều có thể làm tốt hơn:
+- Nên thêm caching từ đầu (premature optimization nhưng đáng)
+- Auth cho app với Paseto
+### Học được:
+- Database constraints > Application logic cho uniqueness
+- Trade-offs luôn tồn tại, quan trọng là document chúng
+
+---
+
+
+## 👤 Author
+
+**Mai Thanh Dat**
+- Email: datmt07@gmail.com
+- GitHub: https://github.com/datmaithanh
+
+---
+
+**Last Updated:** December 2025
