@@ -36,87 +36,85 @@ func (server *Server) newUrlsResponse(ctx *gin.Context) {
 
 	existingUrl, err := server.store.GetUrlByOriginalUrl(ctx, req.OriginalURL)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
-		return
-	}
+		if err == sql.ErrNoRows {
+			payload := db.CreateUrlTxParams{
+				CreateUrlParams: db.CreateUrlParams{
+					OriginalUrl: req.OriginalURL,
+					Title:       req.Title,
+					ExpiresAt:   time.Now().Add(config.URL_EXPIRE_DURATION),
+				},
+				AfterCreate: func(q *db.Queries, url *db.Url) (db.Url, error) {
+					code := utils.EncodeBase62(url.ID)
+					shortUrl := fmt.Sprintf("%s/%s", config.DOMAIN_NAME, code)
 
-	if existingUrl.OriginalUrl == req.OriginalURL {
-		if time.Now().After(existingUrl.ExpiresAt) {
+					result, err := q.UpdateCodeUrl(ctx, db.UpdateCodeUrlParams{
+						ID:       url.ID,
+						Code:     sql.NullString{String: code, Valid: true},
+						ShortUrl: sql.NullString{String: shortUrl, Valid: true},
+					})
+					if err != nil {
+						return db.Url{}, err
+					}
+					return result, nil
+				},
+			}
 
-			newExpire := time.Now().Add(config.URL_EXPIRE_DURATION)
-
-			updated, err := server.store.UpdateExpireUrl(ctx, db.UpdateExpireUrlParams{
-				ID:        existingUrl.ID,
-				ExpiresAt: newExpire,
-			})
+			url, err := server.store.CreateUrlTx(ctx, payload)
+			fmt.Println("DEBUG URL: ", url)
 			if err != nil {
 				ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 				return
 			}
 
-			ctx.JSON(http.StatusOK, urlsResponse{
-				Code:        updated.Code.String,
-				ShortURL:    updated.ShortUrl.String,
-				OriginalURL: updated.OriginalUrl,
-				Title:       updated.Title,
-				Clicks:      updated.Clicks,
-				CreatedAt:   updated.CreatedAt,
-				ExpiresAt:   updated.ExpiresAt,
-			})
+			response := urlsResponse{
+				Code:        url.Url.Code.String,
+				ShortURL:    url.Url.ShortUrl.String,
+				OriginalURL: url.Url.OriginalUrl,
+				Title:       url.Url.Title,
+				Clicks:      url.Url.Clicks,
+				CreatedAt:   url.Url.CreatedAt,
+				ExpiresAt:   url.Url.ExpiresAt,
+			}
+			ctx.JSON(http.StatusOK, response)
+			return
+		}
+	}
+
+	if time.Now().After(existingUrl.ExpiresAt) {
+
+		newExpire := time.Now().Add(config.URL_EXPIRE_DURATION)
+
+		updated, err := server.store.UpdateExpireUrl(ctx, db.UpdateExpireUrlParams{
+			ID:        existingUrl.ID,
+			ExpiresAt: newExpire,
+		})
+		if err != nil {
+			ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 			return
 		}
 
 		ctx.JSON(http.StatusOK, urlsResponse{
-			Code:        existingUrl.Code.String,
-			ShortURL:    existingUrl.ShortUrl.String,
-			OriginalURL: existingUrl.OriginalUrl,
-			Title:       existingUrl.Title,
-			Clicks:      existingUrl.Clicks,
-			CreatedAt:   existingUrl.CreatedAt,
-			ExpiresAt:   existingUrl.ExpiresAt,
+			Code:        updated.Code.String,
+			ShortURL:    updated.ShortUrl.String,
+			OriginalURL: updated.OriginalUrl,
+			Title:       updated.Title,
+			Clicks:      updated.Clicks,
+			CreatedAt:   updated.CreatedAt,
+			ExpiresAt:   updated.ExpiresAt,
 		})
 		return
 	}
 
-	payload := db.CreateUrlTxParams{
-		CreateUrlParams: db.CreateUrlParams{
-			OriginalUrl: req.OriginalURL,
-			Title:       req.Title,
-			ExpiresAt:   time.Now().Add(config.URL_EXPIRE_DURATION),
-		},
-		AfterCreate: func(q *db.Queries, url *db.Url) (db.Url, error) {
-			code := utils.EncodeBase62(url.ID)
-			shortUrl := fmt.Sprintf("%s/%s", config.DOMAIN_NAME, code)
+	ctx.JSON(http.StatusOK, urlsResponse{
+		Code:        existingUrl.Code.String,
+		ShortURL:    existingUrl.ShortUrl.String,
+		OriginalURL: existingUrl.OriginalUrl,
+		Title:       existingUrl.Title,
+		Clicks:      existingUrl.Clicks,
+		CreatedAt:   existingUrl.CreatedAt,
+		ExpiresAt:   existingUrl.ExpiresAt,
+	})
 
-			result, err := q.UpdateCodeUrl(ctx, db.UpdateCodeUrlParams{
-				ID:       url.ID,
-				Code:     sql.NullString{String: code, Valid: true},
-				ShortUrl: sql.NullString{String: shortUrl, Valid: true},
-			})
-			if err != nil {
-				return db.Url{}, err
-			}
-			return result, nil
-		},
-	}
-
-	url, err := server.store.CreateUrlTx(ctx, payload)
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
-		return
-	}
-
-	response := urlsResponse{
-		Code:        url.Url.Code.String,
-		ShortURL:    url.Url.ShortUrl.String,
-		OriginalURL: url.Url.OriginalUrl,
-		Title:       url.Url.Title,
-		Clicks:      url.Url.Clicks,
-		CreatedAt:   url.Url.CreatedAt,
-		ExpiresAt:   url.Url.ExpiresAt,
-	}
-
-	ctx.JSON(http.StatusOK, response)
 }
 
 type getUrlByCodeRedirect struct {

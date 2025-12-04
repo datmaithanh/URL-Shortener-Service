@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 )
 
 type CreateUrlTxParams struct {
@@ -19,6 +20,17 @@ func (store *SQLStore) CreateUrlTx(ctx context.Context, arg CreateUrlTxParams) (
 	err := store.execTx(ctx, func(q *Queries) error {
 
 		var err error
+
+		existingUrl, err := q.GetUrlByOriginalUrl(ctx, arg.OriginalUrl)
+
+		if err == nil {
+			result.Url = existingUrl
+			return nil
+		}
+
+		if err != sql.ErrNoRows {
+			return err
+		}
 
 		result.Url, err = q.CreateUrl(ctx, arg.CreateUrlParams)
 		if err != nil {
