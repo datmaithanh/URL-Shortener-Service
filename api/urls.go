@@ -35,9 +35,12 @@ func (server *Server) newUrlsResponse(ctx *gin.Context) {
 	}
 
 	existingUrl, err := server.store.GetUrlByOriginalUrl(ctx, req.OriginalURL)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
+	}
 
-	if err == nil && existingUrl.OriginalUrl == req.OriginalURL {
-
+	if existingUrl.OriginalUrl == req.OriginalURL {
 		if time.Now().After(existingUrl.ExpiresAt) {
 
 			newExpire := time.Now().Add(config.URL_EXPIRE_DURATION)
@@ -130,24 +133,36 @@ func (server *Server) redirectUrl(ctx *gin.Context) {
 	code := req.Code
 
 	url, err := server.store.GetUrlByCode(ctx, sql.NullString{String: code, Valid: true})
-	if err == nil {
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, errorResponse(err))
+		return
+	}
+	if time.Now().After(url.ExpiresAt) {
 
-		if time.Now().After(url.ExpiresAt) {
+		newExpire := time.Now().Add(config.URL_EXPIRE_DURATION)
 
-			newExpire := time.Now().Add(config.URL_EXPIRE_DURATION)
-
-			updated, err := server.store.UpdateExpireUrl(ctx, db.UpdateExpireUrlParams{
-				ID:        url.ID,
-				ExpiresAt: newExpire,
-			})
-			if err != nil {
-				ctx.JSON(http.StatusInternalServerError, errorResponse(err))
-				return
-			}
-
-			ctx.Redirect(http.StatusFound, updated.OriginalUrl)
+		updated, err := server.store.UpdateExpireUrl(ctx, db.UpdateExpireUrlParams{
+			ID:        url.ID,
+			ExpiresAt: newExpire,
+		})
+		if err != nil {
+			ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 			return
 		}
+
+		_, err = server.store.UpdateClicks(ctx, url.ID)
+		if err != nil {
+			ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+			return
+		}
+
+		ctx.Redirect(http.StatusFound, updated.OriginalUrl)
+		return
+	}
+	_, err = server.store.UpdateClicks(ctx, url.ID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
 	}
 
 	ctx.Redirect(http.StatusFound, url.OriginalUrl)

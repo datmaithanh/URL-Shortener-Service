@@ -160,6 +160,29 @@ func (q *Queries) ListUrl(ctx context.Context, arg ListUrlParams) ([]Url, error)
 	return items, nil
 }
 
+const updateClicks = `-- name: UpdateClicks :one
+UPDATE urls
+SET clicks = clicks + 1
+WHERE id = $1
+RETURNING id, code, short_url, original_url, title, clicks, created_at, expires_at
+`
+
+func (q *Queries) UpdateClicks(ctx context.Context, id int64) (Url, error) {
+	row := q.db.QueryRowContext(ctx, updateClicks, id)
+	var i Url
+	err := row.Scan(
+		&i.ID,
+		&i.Code,
+		&i.ShortUrl,
+		&i.OriginalUrl,
+		&i.Title,
+		&i.Clicks,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+	)
+	return i, err
+}
+
 const updateCodeUrl = `-- name: UpdateCodeUrl :one
 UPDATE urls
 SET code = $2,

@@ -16,6 +16,7 @@ type Querier interface {
 	GetUrlByCode(ctx context.Context, code sql.NullString) (Url, error)
 	GetUrlByOriginalUrl(ctx context.Context, originalUrl string) (Url, error)
 	ListUrl(ctx context.Context, arg ListUrlParams) ([]Url, error)
+	UpdateClicks(ctx context.Context, id int64) (Url, error)
 	UpdateCodeUrl(ctx context.Context, arg UpdateCodeUrlParams) (Url, error)
 	UpdateExpireUrl(ctx context.Context, arg UpdateExpireUrlParams) (Url, error)
 	UpdateUrl(ctx context.Context, arg UpdateUrlParams) (Url, error)

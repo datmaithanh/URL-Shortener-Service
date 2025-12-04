@@ -46,6 +46,12 @@ SET expires_at = $2
 WHERE id = $1
 RETURNING *;
 
+-- name: UpdateClicks :one
+UPDATE urls
+SET clicks = clicks + 1
+WHERE id = $1
+RETURNING *;
+
 -- name: DeleteUrl :exec
 DELETE FROM urls
 WHERE id = $1;
