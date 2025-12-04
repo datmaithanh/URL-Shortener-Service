@@ -74,6 +74,27 @@ func (q *Queries) GetUrl(ctx context.Context, id int64) (Url, error) {
 	return i, err
 }
 
+const getUrlByCode = `-- name: GetUrlByCode :one
+SELECT id, code, short_url, original_url, title, clicks, created_at, expires_at FROM urls
+WHERE code = $1 LIMIT 1
+`
+
+func (q *Queries) GetUrlByCode(ctx context.Context, code sql.NullString) (Url, error) {
+	row := q.db.QueryRowContext(ctx, getUrlByCode, code)
+	var i Url
+	err := row.Scan(
+		&i.ID,
+		&i.Code,
+		&i.ShortUrl,
+		&i.OriginalUrl,
+		&i.Title,
+		&i.Clicks,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+	)
+	return i, err
+}
+
 const getUrlByOriginalUrl = `-- name: GetUrlByOriginalUrl :one
 SELECT id, code, short_url, original_url, title, clicks, created_at, expires_at FROM urls
 WHERE original_url = $1 LIMIT 1

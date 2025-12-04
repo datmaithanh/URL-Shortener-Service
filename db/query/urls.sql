@@ -15,6 +15,10 @@ WHERE id = $1 LIMIT 1;
 SELECT * FROM urls
 WHERE original_url = $1 LIMIT 1;
 
+-- name: GetUrlByCode :one
+SELECT * FROM urls
+WHERE code = $1 LIMIT 1;
+
 -- name: ListUrl :many
 SELECT * FROM urls
 ORDER BY id

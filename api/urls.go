@@ -89,3 +89,25 @@ func (server *Server) newUrlsResponse(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, response)
 }
+
+type getUrlByCodeRedirect struct {
+	Code string `uri:"code" binding:"required,alphanum"`
+}
+
+func (server *Server) redirectUrl(ctx *gin.Context) {
+	var req getUrlByCodeRedirect
+	if err := ctx.ShouldBindUri(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, errorResponse(err))
+		return
+	}
+
+	code := req.Code
+
+	url, err := server.store.GetUrlByCode(ctx, sql.NullString{String: code, Valid: true})
+	if err != nil {
+
+		ctx.JSON(http.StatusNotFound, errorResponse(err))
+		return
+	}
+	ctx.Redirect(http.StatusFound, url.OriginalUrl)
+}
