@@ -12,6 +12,7 @@ type Querier interface {
 	CreateUrl(ctx context.Context, arg CreateUrlParams) (Url, error)
 	DeleteUrl(ctx context.Context, id int64) error
 	GetUrl(ctx context.Context, id int64) (Url, error)
+	GetUrlByOriginalUrl(ctx context.Context, originalUrl string) (Url, error)
 	ListUrl(ctx context.Context, arg ListUrlParams) ([]Url, error)
 	UpdateCodeUrl(ctx context.Context, arg UpdateCodeUrlParams) (Url, error)
 	UpdateUrl(ctx context.Context, arg UpdateUrlParams) (Url, error)

@@ -34,7 +34,21 @@ func (server *Server) newUrlsResponse(ctx *gin.Context) {
 		return
 	}
 
-	
+	// Check if OriginalURL already exists
+	existingUrl, err := server.store.GetUrlByOriginalUrl(ctx, req.OriginalURL)
+	if err == nil && existingUrl.OriginalUrl == req.OriginalURL {
+		ctx.JSON(http.StatusOK, urlsResponse{
+			Code:        existingUrl.Code.String,
+			ShortURL:    existingUrl.ShortUrl.String,
+			OriginalURL: existingUrl.OriginalUrl,
+			Title:       existingUrl.Title,
+			Clicks:      existingUrl.Clicks,
+			CreatedAt:   existingUrl.CreatedAt,
+			ExpiresAt:   existingUrl.ExpiresAt,
+		})
+		return
+	}
+
 	payload := db.CreateUrlParams{
 		OriginalUrl: req.OriginalURL,
 		Title:       req.Title,

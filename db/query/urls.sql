@@ -11,6 +11,10 @@ INSERT INTO urls (
 SELECT * FROM urls
 WHERE id = $1 LIMIT 1;
 
+-- name: GetUrlByOriginalUrl :one
+SELECT * FROM urls
+WHERE original_url = $1 LIMIT 1;
+
 -- name: ListUrl :many
 SELECT * FROM urls
 ORDER BY id
