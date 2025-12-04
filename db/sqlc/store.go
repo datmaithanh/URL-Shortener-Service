@@ -8,6 +8,7 @@ import (
 
 type Store interface {
 	Querier
+	CreateUrlTx(ctx context.Context, arg CreateUrlTxParams) (CreateUrlTxResult, error)
 }
 
 type SQLStore struct {

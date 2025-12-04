@@ -49,37 +49,42 @@ func (server *Server) newUrlsResponse(ctx *gin.Context) {
 		return
 	}
 
-	payload := db.CreateUrlParams{
-		OriginalUrl: req.OriginalURL,
-		Title:       req.Title,
-		ExpiresAt:   time.Now().Add(config.URL_EXPIRE_DURATION),
-	}
-	url, err := server.store.CreateUrl(ctx, payload)
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
-		return
+	payload := db.CreateUrlTxParams{
+		CreateUrlParams: db.CreateUrlParams{
+			OriginalUrl: req.OriginalURL,
+			Title:       req.Title,
+			ExpiresAt:   time.Now().Add(config.URL_EXPIRE_DURATION),
+		},
+		AfterCreate: func(q *db.Queries, url *db.Url) (db.Url, error) {
+			code := utils.EncodeBase62(url.ID)
+			shortUrl := fmt.Sprintf("%s/%s", config.DOMAIN_NAME, code)
+
+			result, err := q.UpdateCodeUrl(ctx, db.UpdateCodeUrlParams{
+				ID:       url.ID,
+				Code:     sql.NullString{String: code, Valid: true},
+				ShortUrl: sql.NullString{String: shortUrl, Valid: true},
+			})
+			if err != nil {
+				return db.Url{}, err
+			}
+			return result, nil
+		},
 	}
 
-	code := utils.EncodeBase62(url.ID)
-	shortUrl := fmt.Sprintf("%s/%s", config.DOMAIN_NAME, code)
-	_, err = server.store.UpdateCodeUrl(ctx, db.UpdateCodeUrlParams{
-		ID:       url.ID,
-		Code:     sql.NullString{String: code, Valid: true},
-		ShortUrl: sql.NullString{String: shortUrl, Valid: true},
-	})
+	url, err := server.store.CreateUrlTx(ctx, payload)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 		return
 	}
 
 	response := urlsResponse{
-		Code:        code,
-		ShortURL:    shortUrl,
-		OriginalURL: url.OriginalUrl,
-		Title:       url.Title,
-		Clicks:      url.Clicks,
-		CreatedAt:   url.CreatedAt,
-		ExpiresAt:   url.ExpiresAt,
+		Code:        url.Url.Code.String,
+		ShortURL:    url.Url.ShortUrl.String,
+		OriginalURL: url.Url.OriginalUrl,
+		Title:       url.Url.Title,
+		Clicks:      url.Url.Clicks,
+		CreatedAt:   url.Url.CreatedAt,
+		ExpiresAt:   url.Url.ExpiresAt,
 	}
 
 	ctx.JSON(http.StatusOK, response)
