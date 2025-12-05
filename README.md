@@ -26,7 +26,7 @@ Xây dựng một hệ thống rút gọn URL cho phép người dùng:
 ## 🚀 Cách chạy project
 ### Link demo
 https://shortservice.datmt.id.vn/
-
+Khi test với link demo: Ban đầu có thể load chậm vì là server free của render nên sẽ chậm lần đầu.
 
 ### Prerequisites
 ```bash
