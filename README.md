@@ -24,6 +24,9 @@ Xây dựng một hệ thống rút gọn URL cho phép người dùng:
 ---
 
 ## 🚀 Cách chạy project
+### Link demo
+https://shortservice.datmt.id.vn/
+
 
 ### Prerequisites
 ```bash
@@ -393,6 +396,19 @@ Kĩ năng debug được nâng cao
 - Trade-offs luôn tồn tại, quan trọng là document chúng
 
 ---
+
+## Test api
+### Create a short url
+<img width="1102" height="680" alt="image" src="https://github.com/user-attachments/assets/9e532be6-2035-415a-9367-91ed1b952efc" />
+
+### Redirect a short url to ori url
+<img width="728" height="46" alt="image" src="https://github.com/user-attachments/assets/8ab67d69-ad56-4a3a-8d8d-38b8a2a6ad7e" />
+
+### Get a url
+<img width="1100" height="658" alt="image" src="https://github.com/user-attachments/assets/c61d87ac-454e-4098-baf0-0f546076547d" />
+
+### Get list url
+<img width="1111" height="875" alt="image" src="https://github.com/user-attachments/assets/b12ee613-5bd5-481f-ba8d-8a68bb77fcb3" />
 
 
 ## 👤 Author
